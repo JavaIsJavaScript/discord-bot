@@ -1,6 +1,6 @@
 # Discord Music Bot
-[![Discord Bots](https://discordbots.org/api/widget/status/387686098534531076.svg?noavatar=true)](https://discordbots.org/bot/387686098534531076)[![Discord Bots](https://discordbots.org/api/widget/servers/387686098534531076.svg?noavatar=true)](https://discordbots.org/bot/387686098534531076)[![Discord Bots](https://discordbots.org/api/widget/upvotes/387686098534531076.svg?noavatar=true)](https://discordbots.org/bot/387686098534531076)
-An open-source TypeScript music bot for discord that runs on Node.
+[![Discord Bots](https://discordbots.org/api/widget/status/387686098534531076.svg?noavatar=true)](https://discordbots.org/bot/387686098534531076)[![Discord Bots](https://discordbots.org/api/widget/servers/387686098534531076.svg?noavatar=true)](https://discordbots.org/bot/387686098534531076)[![Discord Bots](https://discordbots.org/api/widget/upvotes/387686098534531076.svg?noavatar=true)](https://discordbots.org/bot/387686098534531076)  
+**An open-source TypeScript music bot for discord that runs on Node.**
 
 Next to listening to music you also can:
 * Manage the **channels the bot can't join**
@@ -27,6 +27,7 @@ __Commands__ (prefixed with your defined prefix)
 * `unmute` Unmute the bot
 * `clearqueue` Clears queue and stops playing
 * `disconnect` Disconnect bot from channel and clear queue
+* `statistics` See global, server and personal statistics
 * `blacklist show` Lists blacklisted YouTube ids
 * `voicechannel show` Lists blocked voice channels for the bot
 
@@ -34,7 +35,7 @@ Admin commands:
 * `blacklist add <YouTube-url>` Adds a YouTube video to the blacklist
 * `blacklist remove <YouTube-id>` Removes a YouTube video from the blacklist
 * `voicechannel disallow <channel-name>` Blocks the bot from joining a channel
-* `voicechannel allow <channel-name>` Removes the the channel from the blacklist
+* `voicechannel allow <channel-name>` Removes the channel from the blacklist
 * `dj role <role>` Set the DJ role
 * `dj require <command>` Set a command to DJ-only *(help command is always public)*
 * `dj remove <command>` Remove DJ-only from a command

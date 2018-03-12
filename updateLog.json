@@ -1,0 +1,15 @@
+{
+  "url": "https://pleyr.net",
+  "color": 4380128,
+  "author": {
+    "name": "What's new?",
+    "url": "https://pleyr.net"
+  },
+  "description": "Version 0.4.4",
+  "fields": [
+    {
+      "name": "Statistics",
+      "value": "Use the `statistics` command to see global, server and your personal statistics."
+    }
+  ]
+}
