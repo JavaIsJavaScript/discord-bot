@@ -8,6 +8,7 @@ const Guild_1 = require("../Database/Guild");
 const Client_1 = require("./Client");
 const Statistics_TotalSongs_1 = require("../Database/Statistics_TotalSongs");
 const Statistics_TotalSeconds_1 = require("../Database/Statistics_TotalSeconds");
+const Statistics_TotalPlaying_1 = require("../Database/Statistics_TotalPlaying");
 class VoiceConnection {
     constructor(guild) {
         this.queue = [];
@@ -16,6 +17,7 @@ class VoiceConnection {
         this.prefix = Config_1.default.prefix;
         this.statistics_totalSeconds = new Statistics_TotalSeconds_1.default();
         this.statistics_totalSongs = new Statistics_TotalSongs_1.default();
+        this.statistic_totalPlaying = new Statistics_TotalPlaying_1.default();
         this.disconnectAfter = 1000 * 60 * 4;
         this.database = new Guild_1.default(guild.id);
         this.channel = Client_1.default.getMessageableTextChannel(guild);
@@ -44,20 +46,23 @@ class VoiceConnection {
                 collect.set(x, value.val()[x]);
             this.disallowedVoiceChannels = collect;
         });
-        this.disconnectWhenChannelIsEmpty();
+        //this.disconnectWhenChannelIsEmpty();
     }
     play() {
+        if (this.triggered) {
+            console.error('Play triggered whilst playing');
+            return false;
+        }
         if (this.queue.length <= 0) {
             return this.channel.send('Queue empty').then((msg) => {
                 msg.delete(Config_1.default.message_lifetime);
             });
         }
-        if (!this.voiceChannel.connection)
+        if (!this.voiceChannel.connection) {
             this.voiceChannel.join();
+        }
         const song = this.queue.shift();
-        song.buffer();
         this.bufferNextSongStream();
-        song.stream;
         const embed = {
             title: song.snippet.title,
             url: song.url,
@@ -77,15 +82,20 @@ class VoiceConnection {
             msg.delete(Config_1.default.message_lifetime);
         });
         try {
-            this.dispatcher = this.voiceChannel.connection.playStream(song.stream);
+            this.dispatcher = this.voiceChannel.connection.playStream(song.stream, YoutubeConfig_1.default.default_stream_options);
             this.timer = new Date();
+            this.dispatcher.on('error', console.error);
         }
         catch (error) {
             console.error(error.message);
+            return this.channel.send(`Something went wrong, if you see this message please report this at https://pleyr.net/support.\nError message: "${error.message}"`);
         }
+        if (!this.timer || !this.dispatcher)
+            return false;
         this.currentSong = song;
         const author_id = this.currentSong.author.id;
         if (Config_1.default.environment == 'production') {
+            this.statistic_totalPlaying.increment();
             this.statistics_totalSongs.increment();
             this.database.totalSongs.increment();
             this.database.statistics.memberStatistics(author_id).incrementTotalSongs();
@@ -94,30 +104,30 @@ class VoiceConnection {
                     this.database.statistics.memberStatistics(member.id).incrementTotalSongsListened();
             });
         }
-        this.dispatcher.on('end', () => {
+        this.triggered = true;
+        this.dispatcher.once('end', () => {
             let timeout = setTimeout(() => {
+                clearTimeout(timeout);
                 this.currentSong = null;
-                if (Config_1.default.environment == 'production') {
-                    const totalTime = (new Date() - this.timer) / 1000;
-                    this.statistics_totalSeconds.incrementWith(totalTime);
-                    this.database.totalSeconds.incrementWith(totalTime);
-                    this.database.statistics.memberStatistics(author_id).incrementTotalSecondsWith(totalTime);
-                    this.voiceChannel.members.forEach(member => {
-                        if (!member.deaf && !member.user.bot)
-                            this.database.statistics.memberStatistics(member.id).incrementTotalSecondsListenedWith(totalTime);
-                    });
-                }
+                this.triggered = false;
                 if (this.queue.length > 0) {
                     this.play();
                 }
-                else {
-                    this.triggered = false;
-                    clearTimeout(timeout);
+                if (Config_1.default.environment == 'production') {
+                    const totalTime = (new Date() - this.timer) / 1000;
+                    this.statistic_totalPlaying.decrement();
+                    this.statistics_totalSeconds.incrementWith(totalTime);
+                    this.database.totalSeconds.incrementWith(totalTime);
+                    this.database.statistics.memberStatistics(author_id).incrementTotalSecondsWith(totalTime);
+                    if (this.voiceChannel) {
+                        this.voiceChannel.members.forEach(member => {
+                            if (!member.deaf && !member.user.bot)
+                                this.database.statistics.memberStatistics(member.id).incrementTotalSecondsListenedWith(totalTime);
+                        });
+                    }
                 }
             }, 1000);
         });
-        this.triggered = true;
-        this.dispatcher.on('error', console.error);
     }
     setVolume(volume) {
         if (this.dispatcher)
@@ -140,7 +150,7 @@ class VoiceConnection {
         return true;
     }
     skip() {
-        if (this.dispatcher.paused)
+        if (this.dispatcher && this.dispatcher.paused)
             this.resume();
         this.triggered = false;
         this.dispatcher.end();
@@ -169,7 +179,6 @@ class VoiceConnection {
     disconnect() {
         this.truncate();
         if (this.voiceChannel !== undefined && this.voiceChannel.connection !== undefined) {
-            this.voiceChannel.connection.disconnect();
             this.voiceChannel = undefined;
         }
     }

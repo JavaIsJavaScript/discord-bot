@@ -12,6 +12,7 @@ import {type} from "os";
 import {Readable} from "stream";
 import Statistics_GuildSongs from "../Database/Statistics_GuildSongs";
 import Statistics_GuildSeconds from "../Database/Statistics_GuildSeconds";
+import Statistics_TotalPlaying from "../Database/Statistics_TotalPlaying";
 
 export default class VoiceConnection
 {
@@ -31,6 +32,7 @@ export default class VoiceConnection
     public blacklist:Collection<string, string>;
     public statistics_totalSeconds:Statistics_TotalSeconds = new Statistics_TotalSeconds();
     public statistics_totalSongs:Statistics_TotalSongs = new Statistics_TotalSongs();
+    public statistic_totalPlaying:Statistics_TotalPlaying = new Statistics_TotalPlaying();
     public disallowedVoiceChannels:Collection<string, string>;
     protected disconnectAfter:number = 1000*60*4;
 
@@ -64,25 +66,28 @@ export default class VoiceConnection
             this.disallowedVoiceChannels = collect;
         });
 
-        this.disconnectWhenChannelIsEmpty();
+        //this.disconnectWhenChannelIsEmpty();
     }
 
     play():any {
+        if( this.triggered ){
+            console.error('Play triggered whilst playing');
+            return false;
+        }
+
         if( this.queue.length <= 0 ) {
             return this.channel.send('Queue empty').then( (msg: Message) => {
                 msg.delete(Config.message_lifetime);
             });
         }
 
-        if( !this.voiceChannel.connection )
+        if( !this.voiceChannel.connection ){
             this.voiceChannel.join();
+        }
 
         const song = this.queue.shift();
-
-
-        song.buffer();
         this.bufferNextSongStream();
-        song.stream;
+
         const embed =
             {
                 title: song.snippet.title,
@@ -105,16 +110,23 @@ export default class VoiceConnection
         });
         try {
             this.dispatcher = this.voiceChannel.connection.playStream(
-                song.stream
+                song.stream,
+                YoutubeConfig.default_stream_options
             );
             this.timer = new Date();
+            this.dispatcher.on('error', console.error );
         } catch (error) {
             console.error(error.message);
+            return this.channel.send(`Something went wrong, if you see this message please report this at https://pleyr.net/support.\nError message: "${error.message}"`);
         }
+
+        if( !this.timer || !this.dispatcher )
+            return false;
 
         this.currentSong = song;
         const author_id = this.currentSong.author.id;
         if( Config.environment == 'production') {
+            this.statistic_totalPlaying.increment();
             this.statistics_totalSongs.increment();
             this.database.totalSongs.increment();
             this.database.statistics.memberStatistics(author_id).incrementTotalSongs();
@@ -124,30 +136,30 @@ export default class VoiceConnection
             });
         }
 
-        this.dispatcher.on('end', () => {
+        this.triggered = true;
+        this.dispatcher.once('end', () => {
             let timeout = setTimeout(() => {
+                clearTimeout(timeout);
                 this.currentSong = null;
-                if( Config.environment == 'production'){
-                    const totalTime = (<any>new Date() - <any>this.timer )/ 1000;
+                this.triggered = false;
+                if (this.queue.length > 0 ) {
+                    this.play();
+                }
+                if( Config.environment == 'production') {
+                    const totalTime = (<any>new Date() - <any>this.timer) / 1000;
+                    this.statistic_totalPlaying.decrement();
                     this.statistics_totalSeconds.incrementWith(totalTime);
                     this.database.totalSeconds.incrementWith(totalTime);
                     this.database.statistics.memberStatistics(author_id).incrementTotalSecondsWith(totalTime);
-                    this.voiceChannel.members.forEach( member => {
-                        if( !member.deaf && !member.user.bot)
-                            this.database.statistics.memberStatistics(member.id).incrementTotalSecondsListenedWith(totalTime);
-                    });
-                }
-
-                if (this.queue.length > 0) {
-                    this.play();
-                } else {
-                    this.triggered = false;
-                    clearTimeout(timeout);
+                    if( this.voiceChannel ) {
+                        this.voiceChannel.members.forEach(member => {
+                            if (!member.deaf && !member.user.bot)
+                                this.database.statistics.memberStatistics(member.id).incrementTotalSecondsListenedWith(totalTime);
+                        });
+                    }
                 }
             }, 1000);
         });
-        this.triggered = true;
-        this.dispatcher.on('error', console.error );
     }
 
     setVolume( volume:number ):void {
@@ -176,7 +188,7 @@ export default class VoiceConnection
     }
 
     skip():void {
-        if( this.dispatcher.paused )
+        if( this.dispatcher && this.dispatcher.paused )
             this.resume();
         this.triggered = false;
         this.dispatcher.end();
@@ -209,7 +221,6 @@ export default class VoiceConnection
     disconnect():void {
         this.truncate();
         if( this.voiceChannel !== undefined && this.voiceChannel.connection !== undefined ) {
-            this.voiceChannel.connection.disconnect();
             this.voiceChannel = undefined;
         }
     }

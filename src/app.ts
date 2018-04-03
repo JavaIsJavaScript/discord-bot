@@ -36,6 +36,12 @@ Client.instance;
 process.on('uncaughtException', (err) => {
     if( HTTPServer.server )
         HTTPServer.server.close();
+    console.log(err);
+});
+
+process.on('unhandledRejection', (err) => {
+    if( HTTPServer.server )
+        HTTPServer.server.close();
     console.error(err);
 });
 
@@ -71,7 +77,7 @@ new StatisticsCommand();
 
 // HTTP server
 HTTPServer.instance;
-process.on('exit', () => {
+process.on('disconnect', () => {
     Client.sendMessageToAllGuilds('Goodbye @everyone');
     HTTPServer.server.close();
 });

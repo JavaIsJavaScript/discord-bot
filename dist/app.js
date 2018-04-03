@@ -36,6 +36,11 @@ Client_1.default.instance;
 process.on('uncaughtException', (err) => {
     if (HTTPServer_1.default.server)
         HTTPServer_1.default.server.close();
+    console.log(err);
+});
+process.on('unhandledRejection', (err) => {
+    if (HTTPServer_1.default.server)
+        HTTPServer_1.default.server.close();
     console.error(err);
 });
 // Register commands
@@ -69,7 +74,7 @@ new MoveCommand_1.default();
 new StatisticsCommand_1.default();
 // HTTP server
 HTTPServer_1.default.instance;
-process.on('exit', () => {
+process.on('disconnect', () => {
     Client_1.default.sendMessageToAllGuilds('Goodbye @everyone');
     HTTPServer_1.default.server.close();
 });
